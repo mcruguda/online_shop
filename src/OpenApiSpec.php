@@ -8,20 +8,22 @@ use OpenApi\Attributes as OAT;
     openapi: '3.0.0',
     info: new OAT\Info(
         version: '1.0.0',
-        title: 'Person API',
-        description: 'Slim REST API for user authentication and person records.'
+        title: 'Online Shop API',
+        description: 'üK295 LB1 — authentication, users, products, and categories.'
     ),
     servers: [new OAT\Server(url: '/', description: 'Application root')],
     tags: [
         new OAT\Tag(name: 'General', description: 'Health and welcome'),
-        new OAT\Tag(name: 'Auth', description: 'Registration and login'),
-        new OAT\Tag(name: 'Person', description: 'Person CRUD'),
+        new OAT\Tag(name: 'Auth', description: 'Authentication'),
+        new OAT\Tag(name: 'Product', description: 'Product catalog'),
+        new OAT\Tag(name: 'Category', description: 'Product categories'),
+        new OAT\Tag(name: 'User', description: 'API user accounts'),
     ]
 )]
 #[OAT\SecurityScheme(
     securityScheme: 'bearerAuth',
     type: 'http',
-    description: 'JWT from POST /auth/login',
+    description: 'JWT from POST /api/v1/authenticate',
     scheme: 'bearer',
     bearerFormat: 'JWT'
 )]
@@ -35,10 +37,10 @@ use OpenApi\Attributes as OAT;
 )]
 #[OAT\Schema(
     schema: 'Credentials',
-    required: ['email', 'password'],
+    required: ['username', 'password'],
     properties: [
-        new OAT\Property(property: 'email', type: 'string', format: 'email', example: 'user@example.com'),
-        new OAT\Property(property: 'password', type: 'string', format: 'password', example: 'secret'),
+        new OAT\Property(property: 'username', type: 'string', example: 'admin'),
+        new OAT\Property(property: 'password', type: 'string', format: 'password', example: 'sec!ReT423*&'),
     ],
     type: 'object'
 )]
@@ -53,20 +55,85 @@ use OpenApi\Attributes as OAT;
     type: 'object'
 )]
 #[OAT\Schema(
-    schema: 'RegisterResponse',
-    required: ['email'],
+    schema: 'Product',
+    required: ['id', 'sku', 'name', 'price', 'stock', 'active'],
     properties: [
-        new OAT\Property(property: 'email', type: 'string', format: 'email'),
+        new OAT\Property(property: 'id', type: 'integer', example: 12345678),
+        new OAT\Property(property: 'sku', type: 'string', example: '12345678'),
+        new OAT\Property(property: 'name', type: 'string', example: 'CsBe-Logo'),
+        new OAT\Property(property: 'id_category', type: 'integer', nullable: true, example: 1),
+        new OAT\Property(property: 'price', type: 'number', format: 'float', example: 39999.95),
+        new OAT\Property(property: 'description', type: 'string', nullable: true),
+        new OAT\Property(property: 'image', type: 'string', nullable: true),
+        new OAT\Property(property: 'stock', type: 'integer', example: 3),
+        new OAT\Property(property: 'active', type: 'integer', example: 1),
     ],
     type: 'object'
 )]
 #[OAT\Schema(
-    schema: 'Person',
-    required: ['name', 'birthday', 'email'],
+    schema: 'ProductInput',
+    required: ['name', 'price', 'active'],
     properties: [
-        new OAT\Property(property: 'name', type: 'string', example: 'Jane Doe'),
-        new OAT\Property(property: 'birthday', type: 'string', format: 'date', example: '1990-05-15'),
-        new OAT\Property(property: 'email', type: 'string', format: 'email', example: 'jane@example.com'),
+        new OAT\Property(property: 'sku', type: 'string'),
+        new OAT\Property(property: 'name', type: 'string'),
+        new OAT\Property(property: 'price', type: 'number', format: 'float'),
+        new OAT\Property(property: 'id_category', type: 'integer', nullable: true),
+        new OAT\Property(property: 'description', type: 'string', nullable: true),
+        new OAT\Property(property: 'image', type: 'string', nullable: true),
+        new OAT\Property(property: 'stock', type: 'integer'),
+        new OAT\Property(property: 'active', type: 'integer', example: 1),
+    ],
+    type: 'object'
+)]
+#[OAT\Schema(
+    schema: 'Category',
+    required: ['id', 'name', 'active'],
+    properties: [
+        new OAT\Property(property: 'id', type: 'integer', example: 1),
+        new OAT\Property(property: 'name', type: 'string', example: 'Firmen-Logos'),
+        new OAT\Property(property: 'active', type: 'integer', example: 1),
+    ],
+    type: 'object'
+)]
+#[OAT\Schema(
+    schema: 'CategoryInput',
+    required: ['name', 'active'],
+    properties: [
+        new OAT\Property(property: 'name', type: 'string', example: 'Firmen-Logos'),
+        new OAT\Property(property: 'active', type: 'integer', example: 1),
+    ],
+    type: 'object'
+)]
+#[OAT\Schema(
+    schema: 'User',
+    required: ['username'],
+    properties: [
+        new OAT\Property(property: 'username', type: 'string', example: 'admin'),
+    ],
+    type: 'object'
+)]
+#[OAT\Schema(
+    schema: 'UserInput',
+    required: ['username', 'password'],
+    properties: [
+        new OAT\Property(property: 'username', type: 'string', example: 'shopper1'),
+        new OAT\Property(property: 'password', type: 'string', format: 'password'),
+    ],
+    type: 'object'
+)]
+#[OAT\Schema(
+    schema: 'UserPatch',
+    required: ['password'],
+    properties: [
+        new OAT\Property(property: 'password', type: 'string', format: 'password'),
+    ],
+    type: 'object'
+)]
+#[OAT\Schema(
+    schema: 'CategoryPatch',
+    properties: [
+        new OAT\Property(property: 'name', type: 'string'),
+        new OAT\Property(property: 'active', type: 'integer', example: 0),
     ],
     type: 'object'
 )]
@@ -78,7 +145,7 @@ use OpenApi\Attributes as OAT;
     responses: [
         new OAT\Response(response: 200, description: 'Plain text greeting', content: new OAT\MediaType(
             mediaType: 'text/plain',
-            schema: new OAT\Schema(type: 'string', example: 'Hello World')
+            schema: new OAT\Schema(type: 'string', example: 'Online Shop API — use /api/v1')
         )),
     ]
 )]

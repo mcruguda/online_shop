@@ -1,0 +1,8 @@
+# Install: copy this file to C:\xampp\htdocs\api\.htaccess
+# (create the api folder if it does not exist)
+#
+# Routes Bruno URLs http://localhost/api/v1/... to the Slim app.
+
+RewriteEngine On
+RewriteBase /api/
+RewriteRule ^v1(/.*)?$ /online_shop/public/index.php [L,QSA]

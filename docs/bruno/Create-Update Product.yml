@@ -1,0 +1,27 @@
+info:
+  name: Create/Update Product
+  type: http
+  seq: 3
+
+http:
+  method: PUT
+  url: http://localhost/api/v1/product/12345678
+  body:
+    type: json
+    data: |-
+      {
+        "active": 1,
+        "id_category": 1,
+        "name": "CsBe-Logo",
+        "image": "https://www.csbe.ch/resources/themes/csbe/images/logo.svg?m=1595406300",
+        "description": "Kaufen Sie jetzt das tolle Logo der CsBe!",
+        "price": 39999.95,
+        "stock": 3
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
