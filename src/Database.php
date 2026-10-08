@@ -2,65 +2,85 @@
 
 namespace App;
 
-use PDO;
+use mysqli;
+use mysqli_sql_exception;
 
 class Database
 {
-    private PDO $pdo;
+    private mysqli $mysqli;
 
-    public function __construct(string $sqlitePath)
+    /**
+     * @param array{host: string, port: string, name: string, user: string, password: string, charset: string} $config
+     */
+    public function __construct(array $config)
     {
-        $directory = dirname($sqlitePath);
-        if (!is_dir($directory)) {
-            mkdir($directory, 0777, true);
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+        try {
+            $this->mysqli = new mysqli(
+                $config["host"],
+                $config["user"],
+                $config["password"],
+                $config["name"],
+                (int) $config["port"]
+            );
+        } catch (mysqli_sql_exception $exception) {
+            throw new \RuntimeException("MySQL connection failed: " . $exception->getMessage(), 0, $exception);
         }
 
-        $this->pdo = new PDO("sqlite:" . $sqlitePath);
-        $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        $this->pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-        $this->createSchema();
+        if (!$this->mysqli->set_charset($config["charset"])) {
+            throw new \RuntimeException("Failed to set charset: " . $this->mysqli->error);
+        }
+
+        $this->ensureApiUser();
     }
 
-    public function getConnection(): PDO
+    public function getConnection(): mysqli
     {
-        return $this->pdo;
+        return $this->mysqli;
     }
 
-    private function createSchema(): void
+    private function ensureApiUser(): void
     {
-        $this->pdo->exec(
-            "CREATE TABLE IF NOT EXISTS persons (
-                email TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                birthday TEXT NOT NULL
-            )"
-        );
+        if (!$this->tableExists("users")) {
+            $result = $this->mysqli->query("SELECT DATABASE() AS db");
+            $row = $result->fetch_assoc();
+            $dbName = $row["db"] ?? "";
 
-        $this->pdo->exec(
-            "CREATE TABLE IF NOT EXISTS users (
-                email TEXT PRIMARY KEY,
-                password_hash TEXT NOT NULL
-            )"
-        );
+            throw new \RuntimeException(
+                "Table `users` is missing in database `" . $dbName
+                . "`. Import database/online_shop.sql in phpMyAdmin (select database lb1_uek295 first)."
+            );
+        }
 
-        $this->seedDefaultUser();
-    }
+        $username = "admin";
+        $statement = $this->mysqli->prepare("SELECT 1 FROM users WHERE username = ?");
+        $statement->bind_param("s", $username);
+        $statement->execute();
+        $result = $statement->get_result();
 
-    private function seedDefaultUser(): void
-    {
-        $statement = $this->pdo->prepare("SELECT 1 FROM users WHERE email = :email");
-        $statement->execute(["email" => "admin@example.com"]);
-
-        if ($statement->fetch() !== false) {
+        if ($result->fetch_assoc() !== null) {
             return;
         }
 
-        $insert = $this->pdo->prepare(
-            "INSERT INTO users (email, password_hash) VALUES (:email, :password_hash)"
+        $passwordHash = password_hash("sec!ReT423*&", PASSWORD_DEFAULT);
+        $insert = $this->mysqli->prepare(
+            "INSERT INTO users (username, password_hash) VALUES (?, ?)"
         );
-        $insert->execute([
-            "email" => "admin@example.com",
-            "password_hash" => password_hash("secret123", PASSWORD_DEFAULT),
-        ]);
+        $insert->bind_param("ss", $username, $passwordHash);
+        $insert->execute();
+    }
+
+    private function tableExists(string $table): bool
+    {
+        $statement = $this->mysqli->prepare(
+            "SELECT 1 FROM information_schema.tables
+             WHERE table_schema = DATABASE() AND table_name = ?"
+        );
+        $statement->bind_param("s", $table);
+        $statement->execute();
+        $result = $statement->get_result();
+
+        return $result->fetch_assoc() !== null;
     }
 }

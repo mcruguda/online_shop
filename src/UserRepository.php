@@ -2,55 +2,111 @@
 
 namespace App;
 
-use PDO;
+use mysqli;
 
 class UserRepository
 {
-    private PDO $pdo;
+    private mysqli $mysqli;
 
-    public function __construct(PDO $pdo)
+    public function __construct(mysqli $mysqli)
     {
-        $this->pdo = $pdo;
+        $this->mysqli = $mysqli;
     }
 
-    public function verifyCredentials(string $email, string $password): bool
+    public function findAll(): array
     {
-        $statement = $this->pdo->prepare(
-            "SELECT password_hash FROM users WHERE email = :email"
+        $result = $this->mysqli->query(
+            "SELECT username FROM users ORDER BY username"
         );
-        $statement->execute(["email" => strtolower($email)]);
-        $row = $statement->fetch();
 
-        if ($row === false) {
+        $users = [];
+        while ($row = $result->fetch_assoc()) {
+            $users[] = ["username" => $row["username"]];
+        }
+
+        return $users;
+    }
+
+    public function findByUsername(string $username): ?User
+    {
+        $statement = $this->mysqli->prepare(
+            "SELECT username FROM users WHERE username = ?"
+        );
+        $statement->bind_param("s", $username);
+        $statement->execute();
+        $result = $statement->get_result();
+        $row = $result->fetch_assoc();
+
+        if ($row === null) {
+            return null;
+        }
+
+        return new User($row["username"]);
+    }
+
+    public function verifyCredentials(string $username, string $password): bool
+    {
+        $statement = $this->mysqli->prepare(
+            "SELECT password_hash FROM users WHERE username = ?"
+        );
+        $statement->bind_param("s", $username);
+        $statement->execute();
+        $result = $statement->get_result();
+        $row = $result->fetch_assoc();
+
+        if ($row === null) {
             return false;
         }
 
         return password_verify($password, $row["password_hash"]);
     }
 
-    public function create(string $email, string $password): bool
+    public function create(string $username, string $password): bool
     {
-        $email = strtolower(trim($email));
-
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if ($this->findByUsername($username) !== null) {
             return false;
         }
 
-        $statement = $this->pdo->prepare("SELECT 1 FROM users WHERE email = :email");
-        $statement->execute(["email" => $email]);
-
-        if ($statement->fetch() !== false) {
-            return false;
-        }
-
-        $insert = $this->pdo->prepare(
-            "INSERT INTO users (email, password_hash) VALUES (:email, :password_hash)"
+        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+        $statement = $this->mysqli->prepare(
+            "INSERT INTO users (username, password_hash) VALUES (?, ?)"
         );
-        $insert->execute([
-            "email" => $email,
-            "password_hash" => password_hash($password, PASSWORD_DEFAULT),
-        ]);
+        $statement->bind_param("ss", $username, $passwordHash);
+        $statement->execute();
 
         return true;
+    }
+
+    public function updatePassword(string $username, string $password): bool
+    {
+        if ($this->findByUsername($username) === null) {
+            return false;
+        }
+
+        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+        $statement = $this->mysqli->prepare(
+            "UPDATE users SET password_hash = ? WHERE username = ?"
+        );
+        $statement->bind_param("ss", $passwordHash, $username);
+        $statement->execute();
+
+        return $statement->affected_rows > 0;
+    }
+
+    public function delete(string $username): bool
+    {
+        $statement = $this->mysqli->prepare("DELETE FROM users WHERE username = ?");
+        $statement->bind_param("s", $username);
+        $statement->execute();
+
+        return $statement->affected_rows > 0;
+    }
+
+    public function countAll(): int
+    {
+        $result = $this->mysqli->query("SELECT COUNT(*) AS total FROM users");
+        $row = $result->fetch_assoc();
+
+        return (int) ($row["total"] ?? 0);
     }
 }

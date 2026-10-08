@@ -13,14 +13,14 @@ class TokenAuth
     /** Token lifetime in seconds. */
     private int $ttl;
 
-    public function __construct(string $secret, string $issuer = "slim-person-api", int $ttl = 3600)
+    public function __construct(string $secret, string $issuer = "online-shop-api", int $ttl = 3600)
     {
         $this->secret = $secret;
         $this->issuer = $issuer;
         $this->ttl = $ttl;
     }
 
-    public function createForUser(string $email): string
+    public function createForUser(string $username): string
     {
         $now = time();
 
@@ -28,7 +28,7 @@ class TokenAuth
             "iat" => $now,
             "exp" => $now + $this->ttl,
             "iss" => $this->issuer,
-            "uid" => strtolower($email),
+            "uid" => $username,
         ], $this->secret);
     }
 
