@@ -1,5 +1,9 @@
-# Install: copy this file to C:\xampp\htdocs\api\.htaccess
-# (create the api folder if it does not exist)
+# Deploy template — NOT loaded by Apache from this path.
+#
+# Install (see README.md):
+#   1. mkdir C:\xampp\htdocs\api
+#   2. copy this file to C:\xampp\htdocs\api\.htaccess
+#   3. If the repo is not in htdocs\online_shop, edit RewriteRule below.
 #
 # Routes Bruno URLs http://localhost/api/v1/... to the Slim app.
 
