@@ -26,7 +26,7 @@ class User
             );
         }
 
-        $this->username = $username;
+        $this->username = SecurityInput::assertSafeForDb($username, "username");
     }
 
     public function getUsername(): string

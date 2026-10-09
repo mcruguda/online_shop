@@ -2,6 +2,7 @@
 
 namespace App;
 
+use InvalidArgumentException;
 use OpenApi\Attributes as OAT;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -47,16 +48,14 @@ class AuthController
     )]
     public function login(Request $request, Response $response): Response
     {
-        $body = $request->getParsedBody();
-        if (!is_array($body)) {
-            $body = [];
-        }
-
-        $username = trim((string) ($body["username"] ?? ""));
-        $password = (string) ($body["password"] ?? "");
-
-        if ($username === "" || $password === "") {
-            return $this->json($response, ["error" => "Username and password are required"], 400);
+        try {
+            $body = Validation::jsonBody($request);
+            Validation::assertOnlyKeys($body, ["username", "password"]);
+            Validation::requireKeys($body, ["username", "password"]);
+            $username = Validation::username($body["username"]);
+            $password = Validation::password($body["password"]);
+        } catch (InvalidArgumentException $exception) {
+            return $this->json($response, ["error" => $exception->getMessage()], 400);
         }
 
         if (!$this->users->verifyCredentials($username, $password)) {
@@ -73,7 +72,7 @@ class AuthController
     private function json(Response $response, array $data, int $status = 200): Response
     {
         $response->getBody()->write(
-            json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            JsonResponse::encode($data)
         );
 
         return $response

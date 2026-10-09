@@ -65,16 +65,8 @@ class CategoryController
     )]
     public function post(Request $request, Response $response): Response
     {
-        $body = $request->getParsedBody();
-        if (!is_array($body)) {
-            $body = [];
-        }
-
         try {
-            $category = new Category(
-                (string) ($body["name"] ?? ""),
-                (int) ($body["active"] ?? 1)
-            );
+            $category = CategoryValidator::fromCreateRequest(Validation::jsonBody($request));
         } catch (InvalidArgumentException $exception) {
             return $this->json($response, ["error" => $exception->getMessage()], 400);
         }
@@ -123,17 +115,10 @@ class CategoryController
     )]
     public function patch(Request $request, Response $response, array $args): Response
     {
-        $body = $request->getParsedBody();
-        if (!is_array($body)) {
-            $body = [];
-        }
-
-        if ($body === []) {
-            return $this->json($response, ["error" => "No fields to update"], 400);
-        }
-
         try {
-            $updated = $this->categories->update((int) $args["id"], $body);
+            $id = Validation::pathPositiveInt($args["id"] ?? null, "id");
+            $fields = CategoryValidator::patchFields(Validation::jsonBody($request));
+            $updated = $this->categories->update($id, $fields);
         } catch (InvalidArgumentException $exception) {
             return $this->json($response, ["error" => $exception->getMessage()], 400);
         }
@@ -175,7 +160,13 @@ class CategoryController
     )]
     public function get(Request $request, Response $response, array $args): Response
     {
-        $category = $this->categories->findById((int) $args["id"]);
+        try {
+            $id = Validation::pathPositiveInt($args["id"] ?? null, "id");
+        } catch (InvalidArgumentException $exception) {
+            return $this->json($response, ["error" => $exception->getMessage()], 400);
+        }
+
+        $category = $this->categories->findById($id);
 
         if ($category === null) {
             return $this->json($response, ["error" => "Category not found"], 404);
@@ -210,7 +201,11 @@ class CategoryController
     )]
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $id = (int) $args["id"];
+        try {
+            $id = Validation::pathPositiveInt($args["id"] ?? null, "id");
+        } catch (InvalidArgumentException $exception) {
+            return $this->json($response, ["error" => $exception->getMessage()], 400);
+        }
 
         if ($this->categories->findById($id) === null) {
             return $this->json($response, ["error" => "Category not found"], 404);
@@ -224,7 +219,7 @@ class CategoryController
     private function json(Response $response, array $data, int $status = 200): Response
     {
         $response->getBody()->write(
-            json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            JsonResponse::encode($data)
         );
 
         return $response

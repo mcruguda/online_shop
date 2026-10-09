@@ -69,20 +69,8 @@ class CategoryRepository
             return null;
         }
 
-        $name = array_key_exists("name", $fields)
-            ? trim((string) $fields["name"])
-            : $existing->getName();
-        $active = array_key_exists("active", $fields)
-            ? (int) $fields["active"]
-            : $existing->getActive();
-
-        if ($name === "") {
-            throw new \InvalidArgumentException("name is required");
-        }
-
-        if ($active !== 0 && $active !== 1) {
-            throw new \InvalidArgumentException("active must be 0 or 1");
-        }
+        $name = $fields["name"] ?? $existing->getName();
+        $active = $fields["active"] ?? $existing->getActive();
 
         $statement = $this->mysqli->prepare(
             "UPDATE category SET name = ?, active = ? WHERE category_id = ?"

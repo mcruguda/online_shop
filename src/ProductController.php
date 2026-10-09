@@ -83,44 +83,23 @@ class ProductController
     )]
     public function put(Request $request, Response $response, array $args): Response
     {
-        $body = $request->getParsedBody();
-        if (!is_array($body)) {
-            $body = [];
-        }
-
-        $id = (int) $args["id"];
-        $categoryId = array_key_exists("id_category", $body) && $body["id_category"] !== null
-            ? (int) $body["id_category"]
-            : null;
-        if ($categoryId !== null && $categoryId < 1) {
-            $categoryId = null;
-        }
-        if (!$this->products->categoryExists($categoryId)) {
-            return $this->json($response, ["error" => "Category not found"], 404);
-        }
-
-        $sku = trim((string) ($body["sku"] ?? (string) $id));
-        if ($sku === "") {
-            $sku = (string) $id;
-        }
-
         try {
-            $product = new Product(
-                $id,
-                $sku,
-                (string) ($body["name"] ?? ""),
-                (float) ($body["price"] ?? -1),
-                $categoryId,
-                (int) ($body["active"] ?? 1),
-                isset($body["description"]) ? (string) $body["description"] : null,
-                isset($body["image"]) ? (string) $body["image"] : null,
-                (int) ($body["stock"] ?? 0)
-            );
+            $id = Validation::pathPositiveInt($args["id"] ?? null, "id");
+            $body = Validation::jsonBody($request);
+            $product = ProductValidator::fromPutRequest($id, $body);
         } catch (InvalidArgumentException $exception) {
             return $this->json($response, ["error" => $exception->getMessage()], 400);
         }
 
-        $result = $this->products->save($product);
+        if (!$this->products->categoryExists($product->getIdCategory())) {
+            return $this->json($response, ["error" => "Category not found"], 404);
+        }
+
+        try {
+            $result = $this->products->save($product);
+        } catch (InvalidArgumentException $exception) {
+            return $this->json($response, ["error" => $exception->getMessage()], 400);
+        }
 
         return $this->json(
             $response,
@@ -159,7 +138,13 @@ class ProductController
     )]
     public function get(Request $request, Response $response, array $args): Response
     {
-        $product = $this->products->findById((int) $args["id"]);
+        try {
+            $id = Validation::pathPositiveInt($args["id"] ?? null, "id");
+        } catch (InvalidArgumentException $exception) {
+            return $this->json($response, ["error" => $exception->getMessage()], 400);
+        }
+
+        $product = $this->products->findById($id);
 
         if ($product === null) {
             return $this->json($response, ["error" => "Product not found"], 404);
@@ -194,7 +179,13 @@ class ProductController
     )]
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $deleted = $this->products->delete((int) $args["id"]);
+        try {
+            $id = Validation::pathPositiveInt($args["id"] ?? null, "id");
+        } catch (InvalidArgumentException $exception) {
+            return $this->json($response, ["error" => $exception->getMessage()], 400);
+        }
+
+        $deleted = $this->products->delete($id);
 
         if (!$deleted) {
             return $this->json($response, ["error" => "Product not found"], 404);
@@ -206,7 +197,7 @@ class ProductController
     private function json(Response $response, array $data, int $status = 200): Response
     {
         $response->getBody()->write(
-            json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            JsonResponse::encode($data)
         );
 
         return $response

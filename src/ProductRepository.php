@@ -58,13 +58,25 @@ class ProductRepository
         $existing = $this->findById($id);
         $params = $this->productParams($product);
 
+        if ($this->skuUsedByOtherProduct($params["sku"], $id)) {
+            throw new \InvalidArgumentException("sku already exists");
+        }
+
         if ($existing === null) {
             $statement = $this->mysqli->prepare(
                 "INSERT INTO product (product_id, sku, name, price, id_category, description, image, stock, active)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $this->bindProductParams($statement, $params);
-            $statement->execute();
+            try {
+                $statement->execute();
+            } catch (\mysqli_sql_exception $exception) {
+                if ($this->mysqli->errno === 1062) {
+                    throw new \InvalidArgumentException("sku already exists", 0, $exception);
+                }
+
+                throw $exception;
+            }
 
             $saved = $this->findById($id);
             if ($saved === null) {
@@ -80,7 +92,15 @@ class ProductRepository
              WHERE product_id = ?"
         );
         $this->bindProductUpdateParams($statement, $params);
-        $statement->execute();
+        try {
+            $statement->execute();
+        } catch (\mysqli_sql_exception $exception) {
+            if ($this->mysqli->errno === 1062) {
+                throw new \InvalidArgumentException("sku already exists", 0, $exception);
+            }
+
+            throw $exception;
+        }
 
         $saved = $this->findById($id);
         if ($saved === null) {
@@ -106,6 +126,18 @@ class ProductRepository
         }
 
         return $this->categories->findById($categoryId) !== null;
+    }
+
+    private function skuUsedByOtherProduct(string $sku, int $productId): bool
+    {
+        $statement = $this->mysqli->prepare(
+            "SELECT product_id FROM product WHERE sku = ? AND product_id <> ? LIMIT 1"
+        );
+        $statement->bind_param("si", $sku, $productId);
+        $statement->execute();
+        $result = $statement->get_result();
+
+        return $result->fetch_assoc() !== null;
     }
 
     private function productParams(Product $product): array

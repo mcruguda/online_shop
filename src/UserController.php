@@ -70,18 +70,13 @@ class UserController
     )]
     public function post(Request $request, Response $response): Response
     {
-        $body = $request->getParsedBody();
-        if (!is_array($body)) {
-            $body = [];
-        }
-
-        $password = (string) ($body["password"] ?? "");
-        if ($password === "") {
-            return $this->json($response, ["error" => "password is required"], 400);
-        }
-
         try {
-            $user = new User((string) ($body["username"] ?? ""));
+            $body = Validation::jsonBody($request);
+            Validation::assertOnlyKeys($body, ["username", "password"]);
+            Validation::requireKeys($body, ["username", "password"]);
+            $username = Validation::username($body["username"]);
+            $password = Validation::password($body["password"]);
+            $user = new User($username);
         } catch (InvalidArgumentException $exception) {
             return $this->json($response, ["error" => $exception->getMessage()], 400);
         }
@@ -122,7 +117,13 @@ class UserController
     )]
     public function get(Request $request, Response $response, array $args): Response
     {
-        $user = $this->users->findByUsername((string) $args["username"]);
+        try {
+            $username = Validation::pathUsername($args["username"] ?? null);
+        } catch (InvalidArgumentException $exception) {
+            return $this->json($response, ["error" => $exception->getMessage()], 400);
+        }
+
+        $user = $this->users->findByUsername($username);
 
         if ($user === null) {
             return $this->json($response, ["error" => "User not found"], 404);
@@ -169,16 +170,14 @@ class UserController
     )]
     public function patch(Request $request, Response $response, array $args): Response
     {
-        $body = $request->getParsedBody();
-        if (!is_array($body)) {
-            $body = [];
-        }
-
-        $username = (string) $args["username"];
-        $password = (string) ($body["password"] ?? "");
-
-        if ($password === "") {
-            return $this->json($response, ["error" => "password is required"], 400);
+        try {
+            $username = Validation::pathUsername($args["username"] ?? null);
+            $body = Validation::jsonBody($request);
+            Validation::assertOnlyKeys($body, ["password"]);
+            Validation::requireKeys($body, ["password"]);
+            $password = Validation::password($body["password"]);
+        } catch (InvalidArgumentException $exception) {
+            return $this->json($response, ["error" => $exception->getMessage()], 400);
         }
 
         if ($this->users->findByUsername($username) === null) {
@@ -220,7 +219,11 @@ class UserController
     )]
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $username = (string) $args["username"];
+        try {
+            $username = Validation::pathUsername($args["username"] ?? null);
+        } catch (InvalidArgumentException $exception) {
+            return $this->json($response, ["error" => $exception->getMessage()], 400);
+        }
 
         if ($this->users->findByUsername($username) === null) {
             return $this->json($response, ["error" => "User not found"], 404);
@@ -238,7 +241,7 @@ class UserController
     private function json(Response $response, array $data, int $status = 200): Response
     {
         $response->getBody()->write(
-            json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+            JsonResponse::encode($data)
         );
 
         return $response
